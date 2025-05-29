@@ -49,6 +49,8 @@ public class SecurityConfig {
                         // Employee management endpoints
                         .requestMatchers("/api/v1/employees/**").hasAnyRole("MANAGER", "ADMIN")
                         .requestMatchers("/api/v1/employees/register").hasRole("MANAGER")
+                        .requestMatchers("/api/v1/payslips/generate").hasRole("MANAGER")
+                        .requestMatchers("/api/v1/employments").hasRole("MANAGER")
                         .requestMatchers("/api/v1/auth/register/admin").hasAuthority("ROLE_ADMIN")
                         .requestMatchers("/api/v1/auth/register/manager").hasAuthority("ROLE_ADMIN")
 

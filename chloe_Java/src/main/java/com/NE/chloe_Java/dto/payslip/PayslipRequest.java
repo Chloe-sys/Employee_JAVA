@@ -20,8 +20,6 @@ public class PayslipRequest {
     @Min(value = 2024, message = "Year must be 2024 or later")
     private Integer year;
 
-    private BigDecimal basicSalary;
-    private BigDecimal allowances;
-    private BigDecimal deductions;
+
 
 }
