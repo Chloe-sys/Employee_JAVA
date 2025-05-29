@@ -17,18 +17,25 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
+import jakarta.mail.MessagingException;
+import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.time.Month;
 import java.time.format.DateTimeFormatter;
+import java.time.format.TextStyle;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class PayslipService {
 
     // Predefined deduction rates
@@ -45,6 +52,9 @@ public class PayslipService {
     private final DeductionRepository deductionRepository;
     private final MessageService messageService;
     private final SecurityService securityService;
+    private final EmailService emailService;
+
+
 
     @Transactional
     public PayslipResponse generatePayslip(PayslipRequest request) {
@@ -146,11 +156,48 @@ public class PayslipService {
         BigDecimal totalAllowances = payslip.getHouseAmount().add(payslip.getTransportAmount());
         BigDecimal totalDeductions = calculateTotalDeductions(payslip);
 
+        // Create and save notification message
         notifyEmployee(payslip.getEmployee().getCode(), "Payslip Approved and Paid",
                 createPayslipApprovalMessage(payslip, totalAllowances, totalDeductions));
 
+        // Send email notification
+        try {
+            Employee employee = payslip.getEmployee();
+            String emailContent = String.format(
+                    "Dear %s,\n\n" +
+                            "Your salary for %s/%d from Rwanda Government amounting to RWF %,.2f " +
+                            "has been credited to your account %s successfully.\n\n" +
+                            "Payment Details:\n" +
+                            "Gross Salary: RWF %,.2f\n" +
+                            "Total Allowances: RWF %,.2f\n" +
+                            "Total Deductions: RWF %,.2f\n" +
+                            "Net Salary: RWF %,.2f\n\n" +
+                            "Best regards,\n" +
+                            "Payroll Management System",
+                    employee.getFirstName(),
+                    getMonthName(payslip.getMonth()),
+                    payslip.getYear(),
+                    payslip.getNetSalary(),
+                    employee.getCode(),
+                    payslip.getGrossSalary(),
+                    totalAllowances,
+                    totalDeductions,
+                    payslip.getNetSalary()
+            );
+
+            emailService.sendEmail(
+                    employee.getEmail(),
+                    "Salary Payment Notification - " + getMonthName(payslip.getMonth()) + " " + payslip.getYear(),
+                    emailContent
+            );
+        } catch (MessagingException e) {
+            log.error("Failed to send email notification for payslip {}: {}", payslipId, e.getMessage());
+            // Don't throw exception - we don't want to roll back the transaction if email fails
+        }
+
         return mapToPayslipResponse(savedPayslip);
     }
+
 
     @Transactional(readOnly = true)
     public List<PayslipResponse> getPayslipsByEmployee(String employeeCode) {
